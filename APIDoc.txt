@@ -1,0 +1,48 @@
+== Server model ==
+The server model is a client-server-replication model. The backend server is not dealing with gamelogic directly
+and the game client acts as a source of server information. A client can connect to a backend server to create a game
+session. Each other client can connect to the backend server and join the game session.
+
+Once in a game session, the initial client will send information to the backend and the other clients can
+request that information.
+
+This is similar to the way Unreal Engine manages their servers. Since the backend does not deal with game logic
+it does not need to share any technologies with the game client or have to reimplement the game logic classes. This
+also isolates the client that acts as a server by avoiding the need to receive the connections of the other players.
+That does mean that you need to reserve one client to act as a server but leaves it open to make it a "headless" client
+or be a playing client that just happens to also maintain the "master state" of the game.
+
+Negative points include the fact that there is some duplication of functionality on the server since it cannot share
+code with the client. That there needs to have a separate "server backend" + "client server" running in paralel with 
+each other.
+
+== API Functions ==
+Query object properties
+* Sends a list of objects that the client wants to get the properties of
+Args : objectNames[]
+
+Update object properties
+* Send a list of objects and their properties to store on the server
+Args : (objects serialized properties)[]
+
+Get game time
+* Get the date and time of the world
+
+Get game session info
+* Get info about a particular game session running
+Args : session name
+
+Create game session
+* Start a new game session that can be joined by other clients
+Args : session name
+
+Join game session
+* Adds the client to the list of players in a game session
+Args : Player name, (some other info)
+
+Get World Data
+* Return all info about the world, islands coordinates and size, map texture, island population and whatever
+Args : none
+
+Initialize World data :
+* Called by the server host, populate the world data.

@@ -1,72 +1,110 @@
-use std::net::*;
-use std::io::*;
+use std::net::{TcpListener, TcpStream};
+use std::io::{BufRead, BufReader, Write};
 use std::string::*;
+use std::borrow::*;
+use std::rc::*;
+use std::cell::*;
+use std::sync::*;
+use std::ops::Deref;
+
+mod sessions;
+mod commands;
+mod testclients;
+use commands::*;
 
 fn main() {
-    start_client_polling();
 
-    std::thread::sleep(std::time::Duration::from_millis(10000));
+    start_server_thread();
 
-    let listener = TcpListener::bind("127.0.0.1:5555").unwrap();
+    let mut tc = std::net::TcpStream::connect("127.0.0.1:5555").unwrap();
+    tc.write_all(b"aaaaa\n").unwrap();
 
-    loop {
-        match listener.accept() {
-            Ok((sock, addr)) => {
-                std::thread::spawn(move || {
-                    println!("Server thread start");
+    let mut sesh = sessions::create_player_session(tc);
+    //sesh.player_socket.write_all(b"bbbbb").unwrap();
 
-                    println!("{:?} Connected", addr);
+    // let mut tc2 = (&tc).clone();
+    // tc2.write_all(b"bbbbbbb\n").unwrap();
 
-                    let mut reader = BufReader::new(sock);
+    // let mut tc3 = (&tc).clone();
+    // tc3.write_all(b"ccccccc\n").unwrap();
 
-                    //let mut my_str = String::new();
-                    let mut buf = vec![];
+    // let joiner = std::thread::spawn(move || {
+    //     tc.write_all(b"dddddd").unwrap();
+    // });
 
-                    loop {
-                        let bytes_read = reader.read_until(b'|', &mut buf).expect("Cannot read line.");
-                        //let bytes_read = reader.read_line(&mut my_str).expect("Cannot read line.");
+    // joiner.join().unwrap();
 
-                        if bytes_read > 0 {
-                            println!("Got : {:?}", String::from_utf8(buf.clone()).unwrap());
+    std::thread::sleep(std::time::Duration::from_secs(5));
+}
 
-                            buf.clear();
-                        }
-                    }
+struct SessionList
+{
+    sessions: std::vec::Vec<sessions::PlayerSession>
+}
 
-                    println!("Server thread terminated !");
-                });
-            },
-            Err(_) => panic!()
+impl SessionList {
+
+    /**
+     * Create a new session list.
+     */
+    pub fn new() -> SessionList {
+        SessionList {
+            sessions: vec![]
         }
+    }
+
+    /**
+     * Test method to try borrowing out of the list.
+     */
+    pub fn get_first_session(&mut self) -> sessions::PlayerSession {
+        return self.sessions.pop().unwrap();
+    }
+
+    /**
+     * Add a session to the list.
+     */
+    pub fn add_session(&mut self, new_session: sessions::PlayerSession) {
+        self.sessions.push(new_session);
     }
 }
 
-fn start_client_polling() {
-    std::thread::spawn(|| {
+fn start_server_thread() {
+
+    let mut sessions_list = SessionList::new();
+
+    std::thread::spawn(move || {
+        let t = std::net::TcpListener::bind("127.0.0.1:5555").unwrap();
+
         loop {
-            let connect_result = client_connect();
+            let (sock, _addr) = t.accept().expect("TCP Accept failed.");
 
-            if connect_result.is_err()  {
-                println!("Connection failed");
-            }
+            let mut sesh = sessions::create_player_session(sock);
 
-            std::thread::sleep(std::time::Duration::from_millis(2000));
+            sessions_list.add_session(sesh.clone());
+
+            std::thread::spawn(move || {
+
+                //let mt: &mut TcpStream = &mut sesh.get_stream();
+
+                //let socks: &TcpStream = &sesh.player_socket.lock().unwrap();
+                let socks: &TcpStream = &sesh.get_stream();
+
+                let mut br = BufReader::new(socks);
+
+                loop {
+                    let mut readbuf = vec![];
+                    br.read_until(b'|', &mut readbuf).unwrap();
+
+                    handle_user_packet(&readbuf, &mut sesh.clone());
+                }
+            });
         }
     });
 }
 
-fn client_connect() -> std::io::Result<()> {
-    //let mut conn = TcpStream::connect_timeout(&SocketAddr::from(([127, 0, 0, 1], 5555)), std::time::Duration::from_secs(10))?;
-    let mut conn = TcpStream::connect("localhost:5555")?;
+fn handle_user_packet(data: &Vec<u8>, session: &mut sessions::PlayerSession)
+{
+    let command = commands::HelloCommand::from_client_message(data);
 
-    conn.write_all(b"Hello hello|")?;
-    std::thread::sleep(std::time::Duration::from_millis(2000));
-
-    conn.write_all(b"Hello 2|")?;
-    std::thread::sleep(std::time::Duration::from_millis(2000));
-
-    conn.write_all(b"Hello 3|")?;
-    std::thread::sleep(std::time::Duration::from_millis(2000));
-
-    return Ok(());
+    session.increment_msg_count();
 }
