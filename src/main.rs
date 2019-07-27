@@ -11,6 +11,7 @@ mod sessions;
 mod commands;
 mod testclients;
 use commands::*;
+use sessions::*;
 
 fn main() {
 
@@ -56,14 +57,14 @@ impl SessionList {
     /**
      * Test method to try borrowing out of the list.
      */
-    pub fn get_first_session(&mut self) -> sessions::PlayerSession {
+    pub fn get_first_session(&mut self) -> PlayerSession {
         return self.sessions.pop().unwrap();
     }
 
     /**
      * Add a session to the list.
      */
-    pub fn add_session(&mut self, new_session: sessions::PlayerSession) {
+    pub fn add_session(&mut self, new_session: PlayerSession) {
         self.sessions.push(new_session);
     }
 }
@@ -80,13 +81,10 @@ fn start_server_thread() {
 
             let mut sesh = sessions::create_player_session(sock);
 
+            // TODO : Does not work, can't update the session in the list
             sessions_list.add_session(sesh.clone());
 
             std::thread::spawn(move || {
-
-                //let mt: &mut TcpStream = &mut sesh.get_stream();
-
-                //let socks: &TcpStream = &sesh.player_socket.lock().unwrap();
                 let socks: &TcpStream = &sesh.get_stream();
 
                 let mut br = BufReader::new(socks);
@@ -95,16 +93,52 @@ fn start_server_thread() {
                     let mut readbuf = vec![];
                     br.read_until(b'|', &mut readbuf).unwrap();
 
-                    handle_user_packet(&readbuf, &mut sesh.clone());
+                    handle_user_packet(&readbuf, &mut sesh.clone()).expect("Unable to make shit work.");
                 }
             });
         }
     });
 }
 
-fn handle_user_packet(data: &Vec<u8>, session: &mut sessions::PlayerSession)
-{
-    let command = commands::HelloCommand::from_client_message(data);
-
+fn handle_user_packet(data: &[u8], session: &mut PlayerSession) -> Result<(), &'static str> {
     session.increment_msg_count();
+
+    let message_type = find_message_type(data);
+
+    match message_type {
+        Some("HELO") => {
+            let msg = HelloCommand::from_client_message(&data).unwrap();
+
+            handle_hello_message(msg, session)?;
+        },
+        _ => {
+            return Err("Unrecognized message type");
+        }
+    }
+
+    return Ok(());
+}
+
+fn find_message_type(data: &[u8]) -> Option<&str> {
+    let header = &data[0..5];
+
+    std::str::from_utf8(header).ok()
+}
+
+/**
+ * Processing for the Hello message. This opens the player session
+ */
+fn handle_hello_message(message: HelloCommand, session: &mut PlayerSession) -> Result<(), &'static str> {
+    println!("Received HELLO message {:?}", message);
+
+    match session.state {
+        SessionState::Closed => {
+            session.state = SessionState::Active;
+
+            return Ok(());
+        },
+        SessionState::Active => {
+            return Err("Session already open");
+        }
+    }
 }
