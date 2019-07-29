@@ -40,7 +40,7 @@ fn main() {
 
 struct SessionList
 {
-    sessions: std::vec::Vec<sessions::PlayerSession>
+    sessions: std::vec::Vec<PlayerSession>
 }
 
 impl SessionList {
@@ -57,8 +57,8 @@ impl SessionList {
     /**
      * Test method to try borrowing out of the list.
      */
-    pub fn get_first_session(&mut self) -> PlayerSession {
-        return self.sessions.pop().unwrap();
+    pub fn get_first_session(&mut self) -> &PlayerSession {
+        return self.sessions.first().unwrap();
     }
 
     /**
@@ -67,12 +67,17 @@ impl SessionList {
     pub fn add_session(&mut self, new_session: PlayerSession) {
         self.sessions.push(new_session);
     }
+
+    pub fn save_session(&mut self, session: PlayerSession) {
+
+    }
 }
 
 fn start_server_thread() {
 
-    let mut sessions_list = SessionList::new();
+    let mut sessions_list = Arc::new(Mutex::new(SessionList::new()));
 
+    // Server Accept thread
     std::thread::spawn(move || {
         let t = std::net::TcpListener::bind("127.0.0.1:5555").unwrap();
 
@@ -81,19 +86,30 @@ fn start_server_thread() {
 
             let mut sesh = sessions::create_player_session(sock);
 
-            // TODO : Does not work, can't update the session in the list
-            sessions_list.add_session(sesh.clone());
+            // Create the initial session of the player. Fields are still
+            // mostly uninitialized
+            sessions_list.lock().unwrap().add_session(sesh.clone());
 
+            let tsession_list = sessions_list.clone();
+
+            // Client thread
             std::thread::spawn(move || {
-                let socks: &TcpStream = &sesh.get_stream();
 
-                let mut br = BufReader::new(socks);
+                let mut tsesh = sesh;
+
+                let sock_clone = tsesh.player_socket.clone();
+                let socket_mutex = sock_clone.lock().unwrap();
+                let player_socket: &TcpStream = &socket_mutex;
+
+                let mut br = BufReader::new(player_socket);
 
                 loop {
                     let mut readbuf = vec![];
                     br.read_until(b'|', &mut readbuf).unwrap();
 
-                    handle_user_packet(&readbuf, &mut sesh.clone()).expect("Unable to make shit work.");
+                    handle_user_packet(&readbuf, &mut tsesh).expect("Unable to make shit work.");
+
+                    tsession_list.lock().unwrap().save_session(tsesh.clone());
                 }
             });
         }
