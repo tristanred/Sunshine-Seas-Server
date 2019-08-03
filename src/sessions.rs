@@ -5,13 +5,13 @@ use std::borrow::*;
 use std::rc::*;
 use std::cell::*;
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum SessionState {
     Closed,
     Active
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PlayerSession {
     pub state: SessionState,
     pub last_comm_time: chrono::DateTime<UTC>,
