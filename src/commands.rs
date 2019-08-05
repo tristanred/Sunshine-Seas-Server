@@ -1,44 +1,54 @@
 use std::iter::*;
 use crate::messageblocks::*;
-
-/**
- * MSG Structure
- *           +--------+
- * MSG ID    |        |   8 bytes
- *           +--------+
- * MSG blks  |        |
- *           |        |
- *              ...
- *           |        |
- *           +--------+
- *
- * Start of block marker = '&'. The ampersand should be aligned on a 8 byte
- * boundary.
- *
- * Block types and sizes
- *
- *
- *
- */
+use std::io::{BufReader, Read};
 
 // HELLO
 #[derive(Debug)]
 pub struct HelloCommand {
-    pub commondat: Commondata,
-    pub userdat: Userdata,
-    pub msg: std::string::String
+    // Command contents
+    pub id: String,
+    pub user: String,
+    pub msg: String
 }
 
 impl HelloCommand {
 
+    pub fn deserialize(data: &[u8]) -> Result<HelloCommand, &'static str> {
+        let mut reader = BufReader::new(data);
+
+        let mut id_bytes = [0; 8];
+        reader.read_exact(&mut id_bytes);
+
+        let mut user_bytes = [0; 32];
+        reader.read_exact(&mut user_bytes);
+
+        let mut msg_bytes = vec![];
+        reader.read_to_end(&mut msg_bytes);
+
+        let res = HelloCommand {
+            id: String::from_utf8(trim_vec_end(&id_bytes)).unwrap(),
+            user: String::from_utf8(trim_vec_end(&user_bytes)).unwrap(),
+            msg: String::from_utf8(trim_vec_end(&msg_bytes)).unwrap()
+        };
+
+        return Ok(res);
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        let mut result: Vec<Vec<u8>> = vec![];
+
+        result.push(self.id.as_bytes().to_vec());
+        result.push(self.user.as_bytes().to_vec());
+        result.push(self.msg.as_bytes().to_vec());
+
+        let flat: Vec<u8> = result.into_iter().flatten().collect();
+
+        return flat;
+    }
+
     pub fn from_client_message(data: &[u8]) -> Result<HelloCommand, &'static str> {
         let blocks = get_messageblocks_groups(data);
 
-        /**
-         * Each block is formatted as such
-         * First 8 bytes is the block identifier
-         *
-         */
 
 
 
@@ -106,6 +116,41 @@ fn get_string_from_msgdata(slice: &[u8]) -> Result<String, String> {
     std::string::String::from_utf8(slice.to_vec()).map_err(|err| err.to_string())
 }
 
+/**
+ * Pad a buffer to a specific length of bytes.
+ */
+fn pad_string(buf: &[u8], padlen: usize) -> Vec<u8> {
+    let mut result = vec![];
+
+    for i in 0..padlen {
+        if i < buf.len() {
+            result.push(buf[i]);
+        } else {
+            result.push(0);
+        }
+    }
+
+    return result;
+}
+
+fn trim_vec_end(buf: &[u8]) -> Vec<u8> {
+    let mut res = vec![];
+
+    let mut data_started = false;
+    for i in (0..buf.len()).rev() {
+        if data_started == true {
+            res.push(buf[i]);
+        } else if buf[i] != 0 {
+            res.push(buf[i]);
+            data_started = true;
+        }
+    }
+
+    res.reverse();
+
+    return res;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -123,5 +168,54 @@ mod tests {
         assert_eq!(&mapped[1], "aaaaaaaa");
         assert_eq!(&mapped[2], "bbbbbb");
         assert_eq!(&mapped[3], "ccc");
+    }
+
+    #[test]
+    fn test_hello_deserialize() {
+        let mut cmd: Vec<u8> = Vec::new();
+
+        let mut one = pad_string(b"HELLO", 8);
+        let mut two = pad_string(b"TestUsername", 32);
+        let mut three = pad_string(b"Super Message", 64);
+
+        cmd.append(&mut one);
+        cmd.append(&mut two);
+        cmd.append(&mut three);
+
+        // let test = HelloCommand {
+        //     id: String::from_utf8(one).unwrap(),
+        //     user: String::from_utf8(two).unwrap(),
+        //     msg: String::from_utf8(three).unwrap()
+        // };
+
+        let test = HelloCommand::deserialize(&cmd).unwrap();
+
+        assert_eq!(test.id, "HELLO");
+        assert_eq!(test.user, "TestUsername");
+        assert_eq!(test.msg, "Super Message");
+    }
+
+    #[test]
+    fn test_hello_serialize() {
+
+    }
+
+    #[test]
+    fn test_hello_serde() {
+
+    }
+
+    #[test]
+    fn test_pad_string() {
+        let test_string = pad_string(b"qwerty\0", 7);
+
+        assert_eq!(test_string, b"qwerty\0");
+    }
+
+    #[test]
+    fn test_trim_string() {
+        let test_string = trim_vec_end(b"qwerty\0\0\0");
+
+        assert_eq!(test_string, b"qwerty");
     }
 }
