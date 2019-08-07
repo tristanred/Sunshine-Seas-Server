@@ -20,7 +20,7 @@ impl HelloCommand {
      * This basically calls the HelloCommand::deserialize function and returns
      * the result if it was able to deserialize correctly.
      */
-    pub fn from_client_message(data: &[u8]) -> Result<HelloCommand, &'static str> {
+    pub fn from_client_message(data: &[u8]) -> Result<HelloCommand, String> {
         let result = HelloCommand::deserialize(data)?;
 
         Ok(result)
@@ -46,7 +46,7 @@ impl HelloCommand {
      * Right now, the data is not validated. As long as there are enough bytes
      * in the buffer it will return Ok even if the data is garbage. TODO.
      */
-    pub fn deserialize(data: &[u8]) -> Result<HelloCommand, &'static str> {
+    pub fn deserialize(data: &[u8]) -> Result<HelloCommand, String> {
         let mut reader = BufReader::new(data);
 
         let mut id_bytes = [0; 8];
@@ -63,6 +63,8 @@ impl HelloCommand {
             user: String::from_utf8(trim_vec_end(&user_bytes)).unwrap(),
             msg: String::from_utf8(trim_vec_end(&msg_bytes)).unwrap()
         };
+
+        validate_command(&res)?;
 
         return Ok(res);
     }
@@ -84,7 +86,29 @@ impl HelloCommand {
 
         return flat;
     }
+}
 
+fn validate_command(command: &HelloCommand) -> Result<(), String>
+{
+    if command.id != String::from("HELO") {
+        let error = format!("HelloCommand has invalid ID [{}]", command.id);
+        
+        return Err(error);
+    }
+
+    if command.user.is_ascii() == false {
+        let error = format!("HelloCommand has a username that's not entirely in ASCII [{}]", command.user);
+
+        return Err(error);
+    }
+
+    if command.msg.is_ascii() == false {
+        let error = format!("HelloCommand has a message that's not entirely in ASCII [{}]", command.msg);
+
+        return Err(error);
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -95,7 +119,7 @@ mod tests {
     fn test_hello_deserialize() {
         let mut cmd: Vec<u8> = Vec::new();
 
-        let mut one = pad_string(b"HELLO", 8);
+        let mut one = pad_string(b"HELO", 8);
         let mut two = pad_string(b"TestUsername", 32);
         let mut three = pad_string(b"Super Message", 64);
 
@@ -105,7 +129,7 @@ mod tests {
 
         let test = HelloCommand::deserialize(&cmd).unwrap();
 
-        assert_eq!(test.id, "HELLO");
+        assert_eq!(test.id, "HELO");
         assert_eq!(test.user, "TestUsername");
         assert_eq!(test.msg, "Super Message");
     }
@@ -113,14 +137,14 @@ mod tests {
     #[test]
     fn test_hello_serialize() {
         let test = HelloCommand {
-            id: String::from("HELLO"),
+            id: String::from("HELO"),
             user: String::from("TestUsername"),
             msg: String::from("Super Message")
         };
 
         let result = test.serialize();
 
-        let one = pad_string(b"HELLO", 8);
+        let one = pad_string(b"HELO", 8);
         let two = pad_string(b"TestUsername", 32);
         let three = b"Super Message".to_vec();
 
@@ -148,5 +172,40 @@ mod tests {
         let cmd_two = HelloCommand::from_info("SuperUser", "SuperMessage");
 
         assert_eq!(cmd_one, cmd_two);
+    }
+
+    /**
+     * Tests that the `validate_command` generates errors when presented
+     * with invalid input.
+     */
+    #[test]
+    fn test_validate_command() {
+        let mut test = HelloCommand::from_info("HELO", "svcsdgdrfrg");
+
+        // Test for wrong ID
+        test.id = String::from("AAA");
+        match validate_command(&test) {
+            Err(_) => { },
+            _ => panic!()
+        };
+
+        test.id = String::from("HELO");
+
+        // Test for non-ascii username
+        test.user = String::from("Gordon Freeman \u{039B}");
+
+        match validate_command(&test) {
+            Err(_) => { },
+            _ => panic!()
+        };
+
+        test.user = String::from("Gordon Freeman");
+
+        // Test for non-ascii message
+        test.msg = String::from("HIDDEN MESSAGE\u{03A8}");
+        match validate_command(&test) {
+            Err(_) => { },
+            _ => panic!()
+        };
     }
 }
