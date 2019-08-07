@@ -1,5 +1,9 @@
 language: rust
 
+rust:
+  - stable
+  - nightly
+
 jobs:
   include:
     - stage: build
@@ -7,3 +11,8 @@ jobs:
     
     - stage: test
       script: cargo test
+
+matrix:
+  allow_failures:
+    - rust: nightly
+  fast_finish: true
