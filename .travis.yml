@@ -1,17 +1,9 @@
 language: rust
-
 rust:
   - stable
+  - beta
   - nightly
-
+  
 matrix:
-  include:
-    - name: build
-      script: cargo build
-    
-    - name: test
-      script: cargo test
-
   allow_failures:
     - rust: nightly
-  fast_finish: true
