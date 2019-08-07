@@ -200,28 +200,19 @@ mod tests {
 
         // Test for wrong ID
         test.id = String::from("AAA");
-        match validate_command(&test) {
-            Err(_) => { },
-            _ => panic!()
-        };
+        validate_command(&test).expect_err("ID is invalid");
 
         test.id = String::from("HELO");
 
         // Test for non-ascii username
         test.user = String::from("Gordon Freeman \u{039B}");
 
-        match validate_command(&test) {
-            Err(_) => { },
-            _ => panic!()
-        };
+        validate_command(&test).expect_err("Username contains non ASCII characters");
 
         test.user = String::from("Gordon Freeman");
 
         // Test for non-ascii message
         test.msg = String::from("HIDDEN MESSAGE\u{03A8}");
-        match validate_command(&test) {
-            Err(_) => { },
-            _ => panic!()
-        };
+        validate_command(&test).expect_err("Message contains non ASCII characters.");
     }
 }

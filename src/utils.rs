@@ -65,6 +65,32 @@ pub fn trim_vec_end(buf: &[u8]) -> Vec<u8> {
     return res;
 }
 
+/**
+ * Checks a condition and return an Err(String) if it is false. Returns Ok()
+ * otherwise.
+ */
+pub fn result_from_condition(condition: bool, errorstring: String) -> Result<(), String> {
+    if condition == false {
+        return Err(errorstring);
+    }
+
+    Ok(())
+}
+
+/**
+ * Checks a predicate and return an Err(String) if it is false. Returns Ok()
+ * otherwise.
+ */
+pub fn result_from_predicate<F>(predicate: F, errorstring: String) -> Result<(), String> 
+    where F: Fn() -> bool
+{
+    if predicate() == false {
+        return Err(errorstring);
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
