@@ -4,15 +4,14 @@ rust:
   - stable
   - nightly
 
-jobs:
+matrix:
   include:
-    - stage: build
+    - name: build
       script: cargo build
     
-    - stage: test
+    - name: test
       script: cargo test
 
-matrix:
   allow_failures:
     - rust: nightly
   fast_finish: true
