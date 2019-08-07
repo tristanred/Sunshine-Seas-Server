@@ -2,7 +2,8 @@ language: rust
 
 jobs:
   include:
-    -stage: build
-    script: cargo build
-    -stage: test
-    script: cargo test
+    - stage: build
+      script: cargo build
+    
+    - stage: test
+      script: cargo test
