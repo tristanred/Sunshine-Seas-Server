@@ -30,10 +30,6 @@ pub fn get_messageblocks_groups(data: &[u8]) -> std::result::Result<Vec<Vec<u8>>
     return Ok(result_vector);
 }
 
-pub fn get_string_from_msgdata(slice: &[u8]) -> Result<String, String> {
-    std::string::String::from_utf8(slice.to_vec()).map_err(|err| err.to_string())
-}
-
 /**
  * Pad a buffer to a specific length of bytes.
  */
