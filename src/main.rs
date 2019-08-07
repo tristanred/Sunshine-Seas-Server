@@ -10,13 +10,14 @@ use std::sync::*;
 use std::ops::Deref;
 use std::iter::*;
 
-mod messageblocks;
 mod sessions;
 mod commands;
 mod testclients;
+mod utils;
+
+use utils::*;
 use commands::*;
 use sessions::*;
-use messageblocks::*;
 
 fn main() {
 

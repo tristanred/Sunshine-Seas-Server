@@ -1,5 +1,6 @@
 use std::net::{TcpStream};
 use std::io::{Write};
+use crate::utils::*;
 
 /**
  * Public functions in this file are used to start client threads
@@ -49,7 +50,17 @@ pub fn start_client_start_stop() {
     std::thread::spawn(move || {
         let mut conn = connect_local();
 
-        conn.write_all(b"HELO|").unwrap();
+        let mut cmd: Vec<u8> = Vec::new();
+
+        let mut one = pad_string(b"HELO", 8);
+        let mut two = pad_string(b"TestUsername", 32);
+        let mut three = pad_string(b"Super Message", 64);
+
+        cmd.append(&mut one);
+        cmd.append(&mut two);
+        cmd.append(&mut three);
+
+        conn.write_all(&cmd).unwrap();
         conn.write_all(b"BYYE|").unwrap();
     });
 }
