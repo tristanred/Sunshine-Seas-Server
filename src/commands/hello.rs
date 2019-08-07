@@ -115,6 +115,10 @@ fn validate_command(command: &HelloCommand) -> Result<(), String>
 mod tests {
     use super::*;
 
+    /**
+     * Tests that deserializing a structure generates the correct fields 
+     * without padding or extra bytes.
+     */
     #[test]
     fn test_hello_deserialize() {
         let mut cmd: Vec<u8> = Vec::new();
@@ -134,6 +138,10 @@ mod tests {
         assert_eq!(test.msg, "Super Message");
     }
 
+    /**
+     * Tests that serializing the structure generates the correct data with the
+     * appropriate padding and field sizes.
+     */
     #[test]
     fn test_hello_serialize() {
         let test = HelloCommand {
@@ -158,6 +166,10 @@ mod tests {
         assert_eq!(result_three.to_vec(), three);
     }
 
+    /**
+     * Tests that building from existing information generates the correct
+     * structure fields.
+     */
     #[test]
     fn test_build_hello_command() {
         let test = HelloCommand::from_info("SuperUser", "SuperMessage");
@@ -166,6 +178,10 @@ mod tests {
         assert_eq!(test.msg, String::from("SuperMessage"));
     }
 
+    /**
+     * Tests that two commands with the same username and message compare as
+     * equals.
+     */
     #[test]
     fn test_hello_command_equality() {
         let cmd_one = HelloCommand::from_info("SuperUser", "SuperMessage");
