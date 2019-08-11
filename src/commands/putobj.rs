@@ -42,7 +42,7 @@ impl ObjProperties {
         let mut result: Vec<Vec<u8>> = vec![];
 
         result.push(pad_string(self.name.as_bytes(), 8));
-        result.push(u32_to_buf(usize_to_u32(self.data.len()))); // TODO : 0 length for now
+        result.push(u32_to_buf(usize_to_u32(self.data.len())));
         result.push(self.data.to_vec());
 
         return result.into_iter().flatten().collect();
@@ -63,8 +63,6 @@ impl ObjProperties {
         let mut length_buf = [0; 4];
         reader.read_exact(&mut length_buf).map_err(|_| "Unable to read length from buffer.")?;
 
-        // Technically should only read `length` bytes instead of reading
-        // to the end.
         let data_buf_len = buf_to_u32(length_buf);
         let mut data_buf = vec![0; u32_to_usize(data_buf_len)];
         reader.read_exact(&mut data_buf).map_err(|_| "Unable to read data from buffer.")?;
@@ -152,7 +150,6 @@ mod tests {
 
     #[test]
     fn test_deserialize_properties() {
-
         // Create 3 test structures with different properties
         let prop1 = ObjProperties {
             name: String::from("Position"),
