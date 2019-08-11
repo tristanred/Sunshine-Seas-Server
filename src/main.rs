@@ -1,4 +1,6 @@
+// Using temporary allows for cleaner development.
 #![allow(unused_imports)]
+#![allow(dead_code)]
 
 use std::net::{TcpListener, TcpStream};
 use std::io::{BufRead, BufReader, Write};
