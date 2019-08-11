@@ -86,7 +86,6 @@ impl From::<&[u8]> for ObjProperties {
 }
 
 /*
- *
  * Struct binary format :
  *
  * [id bytes]
@@ -112,6 +111,11 @@ mod tests {
         let output = ObjProperties::from(&bytes[..]);
 
         assert_eq!(input, output);
+
+        // Test the automatic blanket implementation given by the From trait.
+        let output: &[u8] = &bytes;
+        let tester: ObjProperties = output.into();
+        assert_eq!(input, tester);
     }
 
     #[test]
