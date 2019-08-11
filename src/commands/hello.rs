@@ -2,6 +2,8 @@ use std::iter::*;
 use std::io::{BufReader, Read};
 use crate::utils::*;
 
+pub static HELLO_MSG_ID: &'static str = "HELO";
+
 // HELLO
 #[derive(Debug, PartialEq)]
 pub struct HelloCommand {
@@ -31,7 +33,7 @@ impl HelloCommand {
      */
     pub fn from_info(from_user: &str, with_message: &str) -> HelloCommand {
         HelloCommand {
-            id: String::from("HELLO"),
+            id: String::from(HELLO_MSG_ID),
             user: String::from(from_user),
             msg: String::from(with_message)
         }
@@ -90,9 +92,9 @@ impl HelloCommand {
 
 fn validate_command(command: &HelloCommand) -> Result<(), String>
 {
-    if command.id != String::from("HELO") {
+    if command.id != String::from(HELLO_MSG_ID) {
         let error = format!("HelloCommand has invalid ID [{}]", command.id);
-        
+
         return Err(error);
     }
 
@@ -116,14 +118,14 @@ mod tests {
     use super::*;
 
     /**
-     * Tests that deserializing a structure generates the correct fields 
+     * Tests that deserializing a structure generates the correct fields
      * without padding or extra bytes.
      */
     #[test]
     fn test_hello_deserialize() {
         let mut cmd: Vec<u8> = Vec::new();
 
-        let mut one = pad_string(b"HELO", 8);
+        let mut one = pad_string(HELLO_MSG_ID.as_bytes(), 8);
         let mut two = pad_string(b"TestUsername", 32);
         let mut three = pad_string(b"Super Message", 64);
 
@@ -133,7 +135,7 @@ mod tests {
 
         let test = HelloCommand::deserialize(&cmd).unwrap();
 
-        assert_eq!(test.id, "HELO");
+        assert_eq!(test.id, HELLO_MSG_ID);
         assert_eq!(test.user, "TestUsername");
         assert_eq!(test.msg, "Super Message");
     }
@@ -145,14 +147,14 @@ mod tests {
     #[test]
     fn test_hello_serialize() {
         let test = HelloCommand {
-            id: String::from("HELO"),
+            id: String::from(HELLO_MSG_ID),
             user: String::from("TestUsername"),
             msg: String::from("Super Message")
         };
 
         let result = test.serialize();
 
-        let one = pad_string(b"HELO", 8);
+        let one = pad_string(HELLO_MSG_ID.as_bytes(), 8);
         let two = pad_string(b"TestUsername", 32);
         let three = b"Super Message".to_vec();
 
@@ -196,13 +198,13 @@ mod tests {
      */
     #[test]
     fn test_validate_command() {
-        let mut test = HelloCommand::from_info("HELO", "svcsdgdrfrg");
+        let mut test = HelloCommand::from_info("TstUser", "svcsdgdrfrg");
 
         // Test for wrong ID
         test.id = String::from("AAA");
         validate_command(&test).expect_err("ID is invalid");
 
-        test.id = String::from("HELO");
+        test.id = String::from(HELLO_MSG_ID);
 
         // Test for non-ascii username
         test.user = String::from("Gordon Freeman \u{039B}");

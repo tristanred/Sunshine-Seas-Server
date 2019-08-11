@@ -1,3 +1,8 @@
+extern crate byteorder;
+use byteorder::*;
+use std::io::{BufReader, Cursor};
+use std::convert::TryInto;
+
 /**
  * Separate the buffer into groups of bytes separated by ampersand '&'
  * characters. The separators are not included in each group.
@@ -65,6 +70,34 @@ pub fn trim_vec_end(buf: &[u8]) -> Vec<u8> {
     return res;
 }
 
+pub fn vec_to_trimmed_string(buf: &[u8]) -> Result<String, std::string::FromUtf8Error> {
+    String::from_utf8(trim_vec_end(buf))
+}
+
+pub fn buf_to_u32(buf: [u8; 4]) -> u32 {
+    let mut rdr = Cursor::new(buf);
+
+    let x = rdr.read_u32::<LittleEndian>().unwrap();
+
+    return x;
+}
+
+pub fn u32_to_buf(nb: u32) -> Vec<u8> {
+    let mut res = vec![];
+
+    res.write_u32::<LittleEndian>(nb).unwrap();
+
+    return res;
+}
+
+pub fn u32_to_usize(nb: u32) -> usize {
+    return nb.try_into().unwrap();
+}
+
+pub fn usize_to_u32(size: usize) -> u32 {
+    return size.try_into().unwrap();
+}
+
 /**
  * Checks a condition and return an Err(String) if it is false. Returns Ok()
  * otherwise.
@@ -81,7 +114,7 @@ pub fn result_from_condition(condition: bool, errorstring: String) -> Result<(),
  * Checks a predicate and return an Err(String) if it is false. Returns Ok()
  * otherwise.
  */
-pub fn result_from_predicate<F>(predicate: F, errorstring: String) -> Result<(), String> 
+pub fn result_from_predicate<F>(predicate: F, errorstring: String) -> Result<(), String>
     where F: Fn() -> bool
 {
     if predicate() == false {

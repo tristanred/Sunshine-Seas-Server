@@ -170,18 +170,24 @@ fn handle_user_packet(data: &[u8], session: &mut PlayerSession) -> Result<(), &'
 
     let message_type = find_message_type(data);
 
-    println!("{:?}", message_type);
+    if message_type.is_none() {
+        return Err("Invalid input from find_message_type");
+    }
+
+    let message_type = message_type.unwrap();
+
+    println!("Received type {:?}", message_type);
 
     match message_type {
-        Some("HELO") => {
+        ref x if x == HELLO_MSG_ID => {
             let msg = HelloCommand::from_client_message(&data).unwrap();
 
-            handle_hello_message(msg, session)?;
+            handle_hello_message(&msg, session)?;
         },
-        Some("BYYE") => {
+        ref x if x == BYE_MSG_ID => {
             let msg = ByeCommand::from_client_message(&data).unwrap();
 
-            handle_bye_message(msg, session)?;
+            handle_bye_message(&msg, session)?;
         },
         _ => {
             return Err("Unrecognized message type");
@@ -191,17 +197,22 @@ fn handle_user_packet(data: &[u8], session: &mut PlayerSession) -> Result<(), &'
     return Ok(());
 }
 
-fn find_message_type(data: &[u8]) -> Option<&str> {
-    let header = &data[0..4];
+/**
+ * Read the ID part of the data buffer.Arc
+ *
+ * Specifically, this reads the first 8 bytes and returns a string with the
+ * trailing null bytes trimmed.
+ */
+fn find_message_type(data: &[u8]) -> Option<String> {
+    let header = &data[0..8];
 
-    std::str::from_utf8(header).ok()
-    //std::str::from_utf8(header).map(|st: &str| st.replace(" ", "") ).ok()
+    String::from_utf8(trim_vec_end(header)).ok()
 }
 
 /**
  * Processing for the Hello message. This opens the player session
  */
-fn handle_hello_message(message: HelloCommand, session: &mut PlayerSession) -> Result<(), &'static str> {
+fn handle_hello_message(message: &HelloCommand, session: &mut PlayerSession) -> Result<(), &'static str> {
     println!("Received HELLO message {:?}", message);
 
     match session.state {
@@ -216,7 +227,7 @@ fn handle_hello_message(message: HelloCommand, session: &mut PlayerSession) -> R
     }
 }
 
-fn handle_bye_message(message: ByeCommand, session: &mut PlayerSession) -> Result<(), &'static str> {
+fn handle_bye_message(message: &ByeCommand, session: &mut PlayerSession) -> Result<(), &'static str> {
     println!("Received BYE message {:?}", message);
 
     match session.state {
