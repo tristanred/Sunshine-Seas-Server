@@ -92,7 +92,7 @@ impl HelloCommand {
 
 fn validate_command(command: &HelloCommand) -> Result<(), String>
 {
-    if command.id != String::from(HELLO_MSG_ID) {
+    if command.id != HELLO_MSG_ID {
         let error = format!("HelloCommand has invalid ID [{}]", command.id);
 
         return Err(error);
