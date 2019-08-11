@@ -50,6 +50,13 @@ impl ObjProperties {
         return result.into_iter().flatten().collect();
     }
 
+    /**
+     * Create a new `ObjProperties` instance using a BufReader to take the 
+     * necessary bytes for the structure.
+     * 
+     * This function is reading exactly as many bytes from the stream as needed
+     * so the reader can continue to be used for further reads.
+     */
     pub fn from_reader(reader: &mut BufReader<&[u8]>) -> Result<ObjProperties, String> {
 
         let mut name_buf = [0; 8];
@@ -80,9 +87,9 @@ impl ObjProperties {
  *
  * [id bytes]
  *
- * [name:8B]
- * [length:4B]
- * [data:NB]
+ * [name:8 bytes]
+ * [length:4 bytes]
+ * [data:length bytes]
  */
 
 #[cfg(test)]
@@ -90,8 +97,43 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_serialize() {
+        // Name is exactly 8 bytes
+        let props1 = ObjProperties {
+            name: String::from("TestProp"),
+            length: 15,
+            data: b"{ x: 5, y: 14 }".to_vec()
+        };
+
+        // Name is 4 bytes, padded to 8 bytes
+        let props2 = ObjProperties {
+            name: String::from("Size"),
+            length: 16,
+            data: b"{ w: 50, h: 50 }".to_vec()
+        };
+
+        let serialized1 = props1.to_bytes();
+        let serialized2 = props2.to_bytes();
+
+        let mut prop1_buf = vec![];
+        prop1_buf.append(&mut pad_string(b"TestProp", 8));
+        prop1_buf.append(&mut u32_to_buf(15));
+        prop1_buf.append(&mut b"{ x: 5, y: 14 }".to_vec());
+
+        assert_eq!(serialized1, prop1_buf);
+
+        let mut prop2_buf = vec![];
+        prop2_buf.append(&mut pad_string(b"Size", 8));
+        prop2_buf.append(&mut u32_to_buf(16));
+        prop2_buf.append(&mut b"{ w: 50, h: 50 }".to_vec());
+
+        assert_eq!(serialized2, prop2_buf);
+    }
+
+    #[test]
     fn test_deserialize_properties() {
 
+        // Create 3 test structures with different properties
         let prop1 = ObjProperties {
             name: String::from("Position"),
             length: 64,
@@ -110,17 +152,20 @@ mod tests {
             data: vec![3; 8]
         };
 
+        // Serialize them
         let mut data_bytes = vec![];
         data_bytes.append(&mut prop1.to_bytes());
         data_bytes.append(&mut prop2.to_bytes());
         data_bytes.append(&mut prop3.to_bytes());
 
+        // Recreate each object using a shared reader
         let mut reader = BufReader::new(data_bytes.as_slice());
 
         let obj1 = ObjProperties::from_reader(&mut reader).unwrap();
         let obj2 = ObjProperties::from_reader(&mut reader).unwrap();
         let obj3 = ObjProperties::from_reader(&mut reader).unwrap();
 
+        // Deserialized objects should be equal to the original structures
         assert_eq!(prop1, obj1);
         assert_eq!(prop2, obj2);
         assert_eq!(prop3, obj3);
