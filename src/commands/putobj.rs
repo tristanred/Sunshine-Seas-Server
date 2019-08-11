@@ -4,7 +4,7 @@ use crate::utils::*;
 
 extern crate byteorder;
 use byteorder::*;
-use std::convert::TryInto;
+use std::convert::*;
 
 pub static PUTOBJ_MSG_ID: &'static str = "PUTOBJ";
 
@@ -34,12 +34,10 @@ pub struct ObjProperties {
 }
 
 impl ObjProperties {
-    pub fn from_bytes(data: &[u8]) -> Result<ObjProperties, String> {
-        let mut reader = BufReader::new(data);
 
-        ObjProperties::from_reader(&mut reader)
-    }
-
+    /**
+     * Serialize the structure to a binary vector.
+     */
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut result: Vec<Vec<u8>> = vec![];
 
@@ -81,6 +79,14 @@ impl ObjProperties {
     }
 }
 
+impl From::<&[u8]> for ObjProperties {
+    fn from(buffer: &[u8]) -> Self {
+        let mut reader = BufReader::new(buffer);
+
+        ObjProperties::from_reader(&mut reader).unwrap()
+    }
+}
+
 /*
  *
  * Struct binary format :
@@ -95,6 +101,20 @@ impl ObjProperties {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn from_u8_test() {
+        let input = ObjProperties {
+            name: String::from("TestProp"),
+            length: 15,
+            data: b"{ x: 5, y: 14 }".to_vec()
+        };
+        let bytes = input.to_bytes();
+
+        let output = ObjProperties::from(&bytes[..]);
+
+        assert_eq!(input, output);
+    }
 
     #[test]
     fn test_serialize() {
