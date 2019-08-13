@@ -1,0 +1,1 @@
+[ ] Replace ObjProperties length fields to u64 because all wire format fields should be padded to 8 bytes boundaries.

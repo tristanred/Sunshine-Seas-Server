@@ -43,3 +43,72 @@ pub fn create_player_session(client_socket: TcpStream) -> PlayerSession {
         player_name: None
     }
 }
+
+pub struct SessionManager {
+    sessions: std::vec::Vec<PlayerSession>
+}
+
+impl SessionManager {
+    /**
+     * Create a new session list.
+     */
+    pub fn new() -> SessionManager {
+        SessionManager {
+            sessions: vec![]
+        }
+    }
+
+    /**
+     * Test method to try borrowing out of the list.
+     */
+    pub fn get_first_session(&mut self) -> &PlayerSession {
+        return self.sessions.first().unwrap();
+    }
+
+    /**
+     * Add a session to the list.
+     */
+    pub fn add_session(&mut self, new_session: PlayerSession) {
+        self.sessions.push(new_session);
+    }
+
+    pub fn save_session(&mut self, session: PlayerSession) {
+        if session.player_name.is_none() {
+            return;
+        }
+
+        let session_discriminant = session.player_name.clone().unwrap();
+
+        let sessionlist = &self.sessions;
+
+        let res: Option<(usize, &PlayerSession)> =
+                    sessionlist.iter()
+                     .enumerate()
+                     .find(|(_, item)| {
+                         return is_session_match(item, &session_discriminant);
+                     });
+
+        match res {
+            Some((i, _)) => {
+                let mut dat = &self.sessions[i];
+                std::mem::replace(&mut dat, &session);
+
+                println!("Saved session {} with new info {:?}", i, &self.sessions[i]);
+            },
+            _ => {
+                println!("Session was not saved because it was not found.");
+            }
+        }
+    }
+}
+
+fn is_session_match(session: &PlayerSession, playername: &str) -> bool{
+    match &session.player_name {
+        Some(name) => {
+            return name == playername;
+        },
+        None => {
+            return false;
+        }
+    }
+}

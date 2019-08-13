@@ -90,6 +90,22 @@ pub fn u32_to_buf(nb: u32) -> Vec<u8> {
     return res;
 }
 
+pub fn buf_to_u64(buf: [u8; 8]) -> u64 {
+    let mut rdr = Cursor::new(buf);
+
+    let x = rdr.read_u64::<LittleEndian>().unwrap();
+
+    return x;
+}
+
+pub fn u64_to_buf(nb: u64) -> Vec<u8> {
+    let mut res = vec![];
+
+    res.write_u64::<LittleEndian>(nb).unwrap();
+
+    return res;
+}
+
 pub fn u32_to_usize(nb: u32) -> usize {
     return nb.try_into().unwrap();
 }
@@ -231,7 +247,7 @@ mod tests {
         let error_test = result_from_condition(false, "GOT ERROR");
         assert_eq!(error_test.is_err(), true);
         assert_eq!(error_test.err().unwrap(), "GOT ERROR");
-        
+
         let ok_test = result_from_condition(true, "GOT ERROR");
         assert_eq!(ok_test.is_ok(), true);
     }

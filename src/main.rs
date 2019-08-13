@@ -21,6 +21,16 @@ use utils::*;
 use commands::*;
 use sessions::*;
 
+struct ServerContext {
+    sessions: Mutex<SessionManager>
+}
+
+fn create_server_context() -> ServerContext {
+    ServerContext {
+        sessions: Mutex::new(SessionManager::new())
+    }
+}
+
 fn main() {
 
     start_server_thread();
@@ -33,80 +43,11 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_secs(5));
 }
 
-struct SessionList
-{
-    sessions: std::vec::Vec<PlayerSession>
-}
-
-impl SessionList {
-
-    /**
-     * Create a new session list.
-     */
-    pub fn new() -> SessionList {
-        SessionList {
-            sessions: vec![]
-        }
-    }
-
-    /**
-     * Test method to try borrowing out of the list.
-     */
-    pub fn get_first_session(&mut self) -> &PlayerSession {
-        return self.sessions.first().unwrap();
-    }
-
-    /**
-     * Add a session to the list.
-     */
-    pub fn add_session(&mut self, new_session: PlayerSession) {
-        self.sessions.push(new_session);
-    }
-
-    pub fn save_session(&mut self, session: PlayerSession) {
-        if session.player_name.is_none() {
-            return;
-        }
-
-        let session_discriminant = session.player_name.clone().unwrap();
-
-        let sessionlist = &self.sessions;
-
-        let res: Option<(usize, &sessions::PlayerSession)> =
-                    sessionlist.iter()
-                     .enumerate()
-                     .find(|(_, item)| {
-                         return is_session_match(item, &session_discriminant);
-                     });
-
-        match res {
-            Some((i, _)) => {
-                let mut dat = &self.sessions[i];
-                std::mem::replace(&mut dat, &session);
-
-                println!("Saved session {} with new info {:?}", i, &self.sessions[i]);
-            },
-            _ => {
-                println!("Session was not saved because it was not found.");
-            }
-        }
-    }
-}
-
-fn is_session_match(session: &sessions::PlayerSession, playername: &str) -> bool{
-    match &session.player_name {
-        Some(name) => {
-            return name == playername;
-        },
-        None => {
-            return false;
-        }
-    }
-}
-
 fn start_server_thread() {
 
-    let sessions_list = Arc::new(Mutex::new(SessionList::new()));
+    let context = Arc::new(create_server_context());
+
+    let sessions_list = Arc::new(Mutex::new(SessionManager::new()));
 
     // Server Accept thread
     std::thread::spawn(move || {
@@ -122,13 +63,14 @@ fn start_server_thread() {
             sessions_list.lock().unwrap().add_session(sesh.clone());
 
             let tsession_list = sessions_list.clone();
+            let tctx = context.clone();
 
-            start_client_thread(sesh, tsession_list);
+            start_client_thread(sesh, tctx);
         }
     });
 }
 
-fn start_client_thread(session: PlayerSession, session_list: Arc<Mutex<SessionList>>) {
+fn start_client_thread(session: PlayerSession, ctx: Arc<ServerContext>) {
 
     std::thread::spawn(move || {
         let mut client_session = session;
@@ -154,10 +96,11 @@ fn start_client_thread(session: PlayerSession, session_list: Arc<Mutex<SessionLi
                     // Return value is Unit so not much to do.
                 },
                 Err(msg) => {
-                    log_error(msg);
+                    log_error(&msg);
                 }
             }
 
+            let session_list = &ctx.sessions;
             session_list.lock().unwrap().save_session(client_session.clone());
         }
     });
@@ -167,13 +110,13 @@ fn log_error(message: &str) {
     println!("ERROR: {}", message);
 }
 
-fn handle_user_packet(data: &[u8], session: &mut PlayerSession) -> Result<(), &'static str> {
+fn handle_user_packet(data: &[u8], session: &mut PlayerSession) -> Result<(), String> {
     session.increment_msg_count();
 
     let message_type = find_message_type(data);
 
     if message_type.is_none() {
-        return Err("Invalid input from find_message_type");
+        return Err("Invalid input from find_message_type".to_string());
     }
 
     let message_type = message_type.unwrap();
@@ -191,8 +134,13 @@ fn handle_user_packet(data: &[u8], session: &mut PlayerSession) -> Result<(), &'
 
             handle_bye_message(&msg, session)?;
         },
+        ref x if x == PUTOBJ_MSG_ID => {
+            let msg = PutObjCommand::from_client_message(&data).unwrap();
+
+            handle_put_obj_message(&msg, session)?;
+        },
         _ => {
-            return Err("Unrecognized message type");
+            return Err("Unrecognized message type".to_string());
         }
     }
 
@@ -242,4 +190,10 @@ fn handle_bye_message(message: &ByeCommand, session: &mut PlayerSession) -> Resu
             return Ok(());
         }
     }
+}
+
+fn handle_put_obj_message(message: &PutObjCommand, session: &mut PlayerSession) -> Result<(), String> {
+    println!("Received PUTOBJ message {:?}", message);
+
+    Err("Not implemented".to_string())
 }

@@ -1,0 +1,15 @@
+Reminder document about the wire formats of the server messages.
+
+The server is using message structures defined in the src/commands directory.
+These structure define the logical format of the messages and not necessarily
+how these messages are passed between the clients and the server. This is mostly
+due to the bunary format being serially encoded data and not a json or such
+format being passed around and parsed/jsonifined.
+
+When a message structure becomes too complex, some documentation will provide
+details on how the structure is serialised on the wire but most of the time
+the only consideration is for arrays. A structure keeps the properties in the
+same order in binary that in the logical format. We do not keep `count` property
+next to a vector in the logical format because a Vec already contains such
+information. Instead we assume that in the wire format each array is prepended
+by a u32 containing the size of the following array.

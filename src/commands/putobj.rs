@@ -14,16 +14,65 @@ pub static PUTOBJ_MSG_ID: &'static str = "PUTOBJ";
 // can set several options when calling this method such as deleting an object
 // and updating its properties.
 
+#[derive(Debug)]
 pub enum PutOperation {
     Add,
     Update,
     Delete
 }
 
+fn u64_to_put_operation(value: u64) -> Result<PutOperation, String> {
+    match value {
+        0 => Ok(PutOperation::Add),
+        1 => Ok(PutOperation::Delete),
+        2 => Ok(PutOperation::Update),
+        _ => Err(String::from("Unknown value"))
+    }
+}
+
+#[derive(Debug)]
 pub struct PutObjCommand {
     pub id: String,
-    pub properties: Vec<ObjProperties>,
-    pub operation: PutOperation
+    pub operation: PutOperation, // Encoded as 8 bytes
+    pub properties: Vec<ObjProperties>
+}
+
+impl PutObjCommand {
+    pub fn from_client_message(data: &[u8]) -> Result<PutObjCommand, String> {
+        Ok(PutObjCommand::from(data))
+    }
+}
+
+impl From::<&[u8]> for PutObjCommand {
+    fn from(buffer: &[u8]) -> Self {
+        let mut reader = BufReader::new(buffer);
+
+        let mut id_bytes = [0; 8];
+        reader.read_exact(&mut id_bytes).unwrap();
+
+        let mut oper_bytes = [0; 8];
+        reader.read_exact(&mut oper_bytes).unwrap();
+
+        let mut prop_len_bytes = [0; 8];
+        reader.read_exact(&mut prop_len_bytes).unwrap();
+
+        let prop_len: usize = buf_to_u64(prop_len_bytes).try_into().unwrap();
+
+        let mut properties_list = vec![];
+        for _i in 0..prop_len {
+            let read_prop = ObjProperties::try_from(&mut reader).unwrap();
+
+            properties_list.push(read_prop);
+        }
+
+        let res = PutObjCommand {
+            id: String::from("PUTOBJ"),
+            operation: u64_to_put_operation(buf_to_u64(oper_bytes)).unwrap(),
+            properties: properties_list
+        };
+
+        return res;
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -47,16 +96,20 @@ impl ObjProperties {
 
         return result.into_iter().flatten().collect();
     }
+}
 
-    /**
-     * Create a new `ObjProperties` instance using a BufReader to take the 
-     * necessary bytes for the structure.
-     * 
-     * This function is reading exactly as many bytes from the stream as needed
-     * so the reader can continue to be used for further reads.
-     */
-    pub fn from_reader(reader: &mut BufReader<&[u8]>) -> Result<ObjProperties, String> {
+impl From::<&[u8]> for ObjProperties {
+    fn from(buffer: &[u8]) -> Self {
+        let mut reader = BufReader::new(buffer);
 
+        ObjProperties::try_from(&mut reader).unwrap()
+    }
+}
+
+impl TryFrom::<&mut BufReader<&[u8]>> for ObjProperties {
+    type Error = String;
+
+    fn try_from(reader: &mut BufReader<&[u8]>) -> Result<Self, Self::Error> {
         let mut name_buf = [0; 8];
         reader.read_exact(&mut name_buf).map_err(|_| "Unable to read name from buffer.")?;
 
@@ -74,14 +127,6 @@ impl ObjProperties {
         };
 
         Ok(result)
-    }
-}
-
-impl From::<&[u8]> for ObjProperties {
-    fn from(buffer: &[u8]) -> Self {
-        let mut reader = BufReader::new(buffer);
-
-        ObjProperties::from_reader(&mut reader).unwrap()
     }
 }
 
@@ -182,9 +227,9 @@ mod tests {
         // Recreate each object using a shared reader
         let mut reader = BufReader::new(data_bytes.as_slice());
 
-        let obj1 = ObjProperties::from_reader(&mut reader).unwrap();
-        let obj2 = ObjProperties::from_reader(&mut reader).unwrap();
-        let obj3 = ObjProperties::from_reader(&mut reader).unwrap();
+        let obj1 = ObjProperties::try_from(&mut reader).unwrap();
+        let obj2 = ObjProperties::try_from(&mut reader).unwrap();
+        let obj3 = ObjProperties::try_from(&mut reader).unwrap();
 
         // Deserialized objects should be equal to the original structures
         assert_eq!(prop1, obj1);
