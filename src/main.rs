@@ -21,8 +21,9 @@ use utils::*;
 use commands::*;
 use sessions::*;
 
+// Hosts various server objects.
 struct ServerContext {
-    sessions: Mutex<SessionManager>
+    pub sessions: Mutex<SessionManager>
 }
 
 fn create_server_context() -> ServerContext {
@@ -47,8 +48,6 @@ fn start_server_thread() {
 
     let context = Arc::new(create_server_context());
 
-    let sessions_list = Arc::new(Mutex::new(SessionManager::new()));
-
     // Server Accept thread
     std::thread::spawn(move || {
         let t = std::net::TcpListener::bind("127.0.0.1:5555").unwrap();
@@ -60,9 +59,8 @@ fn start_server_thread() {
             // mostly uninitialized. Then add a clone of it to the session
             // list.
             let sesh = sessions::create_player_session(sock);
-            sessions_list.lock().unwrap().add_session(sesh.clone());
+            context.sessions.lock().unwrap().add_session(sesh.clone());
 
-            let tsession_list = sessions_list.clone();
             let tctx = context.clone();
 
             start_client_thread(sesh, tctx);
@@ -90,7 +88,7 @@ fn start_client_thread(session: PlayerSession, ctx: Arc<ServerContext>) {
                 break;
             }
 
-            match handle_user_packet(&readbuf, &mut client_session) {
+            match handle_user_packet(&readbuf, &mut client_session, ctx.clone()) {
                 Ok(_) => {
                     // packet handled successfully
                     // Return value is Unit so not much to do.
@@ -101,7 +99,7 @@ fn start_client_thread(session: PlayerSession, ctx: Arc<ServerContext>) {
             }
 
             let session_list = &ctx.sessions;
-            session_list.lock().unwrap().save_session(client_session.clone());
+            session_list.lock().unwrap().save_session(&client_session);
         }
     });
 }
@@ -110,7 +108,7 @@ fn log_error(message: &str) {
     println!("ERROR: {}", message);
 }
 
-fn handle_user_packet(data: &[u8], session: &mut PlayerSession) -> Result<(), String> {
+fn handle_user_packet(data: &[u8], session: &mut PlayerSession, ctx: Arc<ServerContext>) -> Result<(), String> {
     session.increment_msg_count();
 
     let message_type = find_message_type(data);
@@ -127,7 +125,7 @@ fn handle_user_packet(data: &[u8], session: &mut PlayerSession) -> Result<(), St
         ref x if x == HELLO_MSG_ID => {
             let msg = HelloCommand::from_client_message(&data).unwrap();
 
-            handle_hello_message(&msg, session)?;
+            handle_hello_message(&msg, session, ctx)?;
         },
         ref x if x == BYE_MSG_ID => {
             let msg = ByeCommand::from_client_message(&data).unwrap();
@@ -162,12 +160,14 @@ fn find_message_type(data: &[u8]) -> Option<String> {
 /**
  * Processing for the Hello message. This opens the player session
  */
-fn handle_hello_message(message: &HelloCommand, session: &mut PlayerSession) -> Result<(), &'static str> {
+fn handle_hello_message(message: &HelloCommand, session: &mut PlayerSession, ctx: Arc<ServerContext>) -> Result<(), &'static str> {
     println!("Received HELLO message {:?}", message);
 
     match session.state {
         SessionState::Closed => {
             session.state = SessionState::Active;
+
+            ctx.sessions.lock().unwrap().add_session(session.clone());
 
             return Ok(());
         },

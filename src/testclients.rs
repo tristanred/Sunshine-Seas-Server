@@ -33,6 +33,7 @@ pub fn start_client_timeout() {
 
         loop {
             std::thread::sleep(std::time::Duration::from_secs(5));
+            // TODO : Check if server closed stream by reading if a NULL byte
         }
     });
 }

@@ -11,6 +11,7 @@ pub enum SessionState {
     Active
 }
 
+// Warning, this struct gets copied a lot !!
 #[derive(Clone, Debug)]
 pub struct PlayerSession {
     pub state: SessionState,
@@ -31,6 +32,20 @@ impl PlayerSession {
 
     pub fn set_username(&mut self, username: String) {
         self.player_name = Some(username);
+    }
+}
+
+impl PartialEq for PlayerSession {
+    fn eq(&self, other: &Self) -> bool {
+        if self.player_name.is_none() || other.player_name.is_none() {
+            return false;
+        }
+
+        // TODO : Clone() used. Find better way ?
+        let left = self.player_name.clone().unwrap();
+        let right = other.player_name.clone().unwrap();
+
+        return left == right;
     }
 }
 
@@ -72,26 +87,20 @@ impl SessionManager {
         self.sessions.push(new_session);
     }
 
-    pub fn save_session(&mut self, session: PlayerSession) {
+    pub fn save_session(&mut self, session: &PlayerSession) {
         if session.player_name.is_none() {
             return;
         }
 
         let session_discriminant = session.player_name.clone().unwrap();
+        let filter_func = |item: &&PlayerSession| is_session_match(item, &session_discriminant);
 
-        let sessionlist = &self.sessions;
-
-        let res: Option<(usize, &PlayerSession)> =
-                    sessionlist.iter()
-                     .enumerate()
-                     .find(|(_, item)| {
-                         return is_session_match(item, &session_discriminant);
-                     });
+        let res = self.find_session(filter_func);
 
         match res {
             Some((i, _)) => {
                 let mut dat = &self.sessions[i];
-                std::mem::replace(&mut dat, &session);
+                std::mem::replace(&mut dat, session);
 
                 println!("Saved session {} with new info {:?}", i, &self.sessions[i]);
             },
@@ -100,8 +109,54 @@ impl SessionManager {
             }
         }
     }
+
+    pub fn remove_session(&mut self, session: &PlayerSession) {
+        if session.player_name.is_none() {
+            return;
+        }
+
+        let session_discriminant = session.player_name.clone().unwrap();
+        let filter_func = |item: &&PlayerSession| is_session_match(item, &session_discriminant);
+
+        let res = self.find_session(filter_func);
+
+        match res {
+            Some((i, _)) => {
+                self.sessions.remove(i);
+
+                println!("Removed session {} with name {}", i, session.player_name.clone().unwrap());
+            },
+            _ => {
+                println!("Session was not removed because it was not found.");
+            }
+        }
+    }
+
+    /**
+     * Find a session given a predicate. Returns the player session and its
+     * index in the list.
+     *
+     * TODO : Might be a good idea to find a way to return a reference instead
+     * of a clone of PlayerSession, that structures gets copied all over.
+     */
+    fn find_session<F>(&self, predicate: F) -> Option<(usize, PlayerSession)>
+        where F: Fn(&&PlayerSession) -> bool
+    {
+        let sessionlist = &self.sessions;
+
+        let res = sessionlist.iter()
+                             .enumerate()
+                             .find(|(_, item)| predicate(item));
+
+        res.map(|(i, item)| (i, item.clone()))
+    }
 }
 
+/**
+ * Checks if a session matches for a particular username.
+ *
+ * This is a shorthand method to avoid dealing with the optional username.
+ */
 fn is_session_match(session: &PlayerSession, playername: &str) -> bool{
     match &session.player_name {
         Some(name) => {
@@ -111,4 +166,19 @@ fn is_session_match(session: &PlayerSession, playername: &str) -> bool{
             return false;
         }
     }
+}
+
+mod tests {
+    use super::*;
+
+    // #[test]
+    // fn test_session_match() {
+
+    // }
+
+    // fn create_test_session() -> PlayerSession {
+
+
+
+    // }
 }
