@@ -46,42 +46,50 @@ fn main() {
 
 fn start_server_thread() {
 
-    let context = Arc::new(create_server_context());
+    let context = Arc::new(Mutex::new(create_server_context()));
 
     // Server Accept thread
     std::thread::spawn(move || {
         let t = std::net::TcpListener::bind("127.0.0.1:5555").unwrap();
 
         loop {
+            let loop_ctx = context.clone();
             let (sock, _addr) = t.accept().expect("TCP Accept failed.");
 
             // Create the initial session of the player. Fields are still
             // mostly uninitialized. Then add a clone of it to the session
             // list.
             let sesh = sessions::create_player_session(sock);
-            context.sessions.lock().unwrap().add_session(sesh.clone());
 
-            let tctx = context.clone();
+            {
+                let m_lock = loop_ctx.lock().unwrap();
+                let ctx: &ServerContext = &m_lock;
+                let mut sessions_lock = ctx.sessions.lock().unwrap();
+                let sessions: &mut sessions::SessionManager = &mut sessions_lock;
+                
+                sessions.add_session(sesh.clone());
+            }
 
-            start_client_thread(sesh, tctx);
+            let session = Arc::new(Mutex::new(sesh));
+            
+            start_client_thread(session, loop_ctx);
         }
     });
 }
 
-fn start_client_thread(mut session: PlayerSession, ctx: Arc<ServerContext>) {
+fn start_client_thread(session: Arc<Mutex<PlayerSession>>, ctx: Arc<Mutex<ServerContext>>) {
 
     std::thread::spawn(move || {
-        let mut t_session = &mut session;
 
-        // Dig into the struct and create a copy of the TcpStream.
-        // TODO : Find and explain how/why this is done.
-        let stream_check = t_session.player_socket.clone();
-        let stream_mutex = stream_check.unwrap();
-        let stream_lock = stream_mutex.lock().unwrap();
-        let stream: &std::net::TcpStream = &stream_lock;
+        let mut session_lock = session.lock().unwrap();
+        let mut session: &mut PlayerSession = &mut session_lock;
+
+        let socket_check = session.player_socket.clone().unwrap();
+        let socket_lock = socket_check.lock().unwrap();
+        let socket: &TcpStream = &socket_lock;
 
         // A bufreader is created using the TcpStream copy
-        let mut br = BufReader::new(stream);
+        let mut br = BufReader::new(socket);
 
         loop {
             let mut readbuf = vec![];
@@ -93,7 +101,10 @@ fn start_client_thread(mut session: PlayerSession, ctx: Arc<ServerContext>) {
                 break;
             }
 
-            match handle_user_packet(&readbuf, &mut t_session, ctx.clone()) {
+            let ctx_lock = ctx.lock().unwrap();
+            let ctx: &ServerContext = &ctx_lock;
+
+            match handle_user_packet(&readbuf, &mut session, ctx) {
                 Ok(_) => {
                     // packet handled successfully
                     // Return value is Unit so not much to do.
@@ -104,7 +115,7 @@ fn start_client_thread(mut session: PlayerSession, ctx: Arc<ServerContext>) {
             }
 
             let session_list = &ctx.sessions;
-            session_list.lock().unwrap().save_session(&t_session);
+            session_list.lock().unwrap().save_session(session);
         }
     });
 }
@@ -113,7 +124,7 @@ fn log_error(message: &str) {
     println!("ERROR: {}", message);
 }
 
-fn handle_user_packet(data: &[u8], session: &mut PlayerSession, ctx: Arc<ServerContext>) -> Result<(), String> {
+fn handle_user_packet(data: &[u8], session: &mut PlayerSession, ctx: &ServerContext) -> Result<(), String> {
     session.increment_msg_count();
 
     let message_type = find_message_type(data);
@@ -165,7 +176,7 @@ fn find_message_type(data: &[u8]) -> Option<String> {
 /**
  * Processing for the Hello message. This opens the player session
  */
-fn handle_hello_message(message: &HelloCommand, session: &mut PlayerSession, ctx: Arc<ServerContext>) -> Result<(), &'static str> {
+fn handle_hello_message(message: &HelloCommand, session: &mut PlayerSession, ctx: &ServerContext) -> Result<(), &'static str> {
     println!("Received HELLO message {:?}", message);
 
     match session.state {
