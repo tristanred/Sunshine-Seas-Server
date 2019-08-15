@@ -68,15 +68,20 @@ fn start_server_thread() {
     });
 }
 
-fn start_client_thread(session: PlayerSession, ctx: Arc<ServerContext>) {
+fn start_client_thread(mut session: PlayerSession, ctx: Arc<ServerContext>) {
 
     std::thread::spawn(move || {
-        let mut client_session = session;
-        let client_socket = client_session.player_socket.clone();
-        let socket_mutex = client_socket.lock().unwrap();
-        let player_socket: &TcpStream = &socket_mutex;
+        let mut t_session = &mut session;
 
-        let mut br = BufReader::new(player_socket);
+        // Dig into the struct and create a copy of the TcpStream.
+        // TODO : Find and explain how/why this is done.
+        let stream_check = t_session.player_socket.clone();
+        let stream_mutex = stream_check.unwrap();
+        let stream_lock = stream_mutex.lock().unwrap();
+        let stream: &std::net::TcpStream = &stream_lock;
+
+        // A bufreader is created using the TcpStream copy
+        let mut br = BufReader::new(stream);
 
         loop {
             let mut readbuf = vec![];
@@ -88,7 +93,7 @@ fn start_client_thread(session: PlayerSession, ctx: Arc<ServerContext>) {
                 break;
             }
 
-            match handle_user_packet(&readbuf, &mut client_session, ctx.clone()) {
+            match handle_user_packet(&readbuf, &mut t_session, ctx.clone()) {
                 Ok(_) => {
                     // packet handled successfully
                     // Return value is Unit so not much to do.
@@ -99,7 +104,7 @@ fn start_client_thread(session: PlayerSession, ctx: Arc<ServerContext>) {
             }
 
             let session_list = &ctx.sessions;
-            session_list.lock().unwrap().save_session(&client_session);
+            session_list.lock().unwrap().save_session(&t_session);
         }
     });
 }

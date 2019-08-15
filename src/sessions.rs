@@ -16,7 +16,7 @@ pub enum SessionState {
 pub struct PlayerSession {
     pub state: SessionState,
     pub last_comm_time: chrono::DateTime<UTC>,
-    pub player_socket: Arc<Mutex<TcpStream>>,
+    pub player_socket: Option<Arc<Mutex<TcpStream>>>,
     pub messages_count: u32,
     pub player_name: Option<String>
 }
@@ -26,9 +26,14 @@ impl PlayerSession {
         self.messages_count += 1;
     }
 
-    pub fn get_stream(&self) -> std::sync::MutexGuard<'_, std::net::TcpStream> {
-        self.player_socket.lock().unwrap()
-    }
+    // pub fn get_stream(&self) -> std::sync::MutexGuard<'_, std::net::TcpStream> {
+    //     let t1 = self.player_socket.clone().unwrap();
+
+    //     let t2 = t1.lock().unwrap();
+    //     let inner: &std::net::TcpStream = &t2;
+
+    //     return inner.try_clone().unwrap();
+    // }
 
     pub fn set_username(&mut self, username: String) {
         self.player_name = Some(username);
@@ -53,7 +58,7 @@ pub fn create_player_session(client_socket: TcpStream) -> PlayerSession {
     PlayerSession {
         state: SessionState::Closed,
         last_comm_time: chrono::UTC::now(),
-        player_socket: Arc::new(Mutex::new(client_socket)),
+        player_socket: Some(Arc::new(Mutex::new(client_socket))),
         messages_count: 0,
         player_name: None
     }
