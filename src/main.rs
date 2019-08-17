@@ -98,12 +98,10 @@ fn start_client_thread(session: Arc<Mutex<PlayerSession>>, ctx: Arc<Mutex<Server
          * possible" principle.
          */
         let socket: TcpStream = {
-            let mut session_lock = session.lock().unwrap();
-            let session: &mut PlayerSession = &mut session_lock;
+            let session = session.lock().unwrap();
 
             let socket_check = session.player_socket.clone().unwrap();
-            let socket_lock = socket_check.lock().unwrap();
-            let socket: &TcpStream = &socket_lock;
+            let socket = socket_check.lock().unwrap();
 
             socket.try_clone().unwrap()
         };
@@ -124,13 +122,10 @@ fn start_client_thread(session: Arc<Mutex<PlayerSession>>, ctx: Arc<Mutex<Server
             // Lock the structures as close as possible to their callsites
             // Lock, call handle_user_packet(...) on it, save session and
             // the locks will be unlocked when the loop scope ends.
-            let mut session_lock = session.lock().unwrap();
-            let mut session: &mut PlayerSession = &mut session_lock;
+            let mut session = session.lock().unwrap();
+            let ctx = ctx.lock().unwrap();
 
-            let ctx_lock = ctx.lock().unwrap();
-            let ctx: &ServerContext = &ctx_lock;
-
-            match handle_user_packet(&readbuf, &mut session, ctx) {
+            match handle_user_packet(&readbuf, &mut session, &ctx) {
                 Ok(_) => {
                     // packet handled successfully
                     // Return value is Unit so not much to do.
@@ -141,7 +136,7 @@ fn start_client_thread(session: Arc<Mutex<PlayerSession>>, ctx: Arc<Mutex<Server
             }
 
             let session_list = &ctx.sessions;
-            session_list.lock().unwrap().save_session(session);
+            session_list.lock().unwrap().save_session(&session);
         }
     });
 }
