@@ -26,15 +26,6 @@ impl PlayerSession {
         self.messages_count += 1;
     }
 
-    // pub fn get_stream(&self) -> std::sync::MutexGuard<'_, std::net::TcpStream> {
-    //     let t1 = self.player_socket.clone().unwrap();
-
-    //     let t2 = t1.lock().unwrap();
-    //     let inner: &std::net::TcpStream = &t2;
-
-    //     return inner.try_clone().unwrap();
-    // }
-
     pub fn set_username(&mut self, username: String) {
         self.player_name = Some(username);
     }
@@ -176,14 +167,44 @@ fn is_session_match(session: &PlayerSession, playername: &str) -> bool{
 mod tests {
     use super::*;
 
-    // #[test]
-    // fn test_session_match() {
+    #[test]
+    fn test_session_match() {
+        /*
+         * Two sessions compares as equal if they have the same username.
+         */
+        let mut sesh_a = create_test_session();
+        sesh_a.set_username(String::from("SuperPlayer"));
 
-    // }
+        let mut sesh_b = create_test_session();
+        sesh_b.set_username(String::from("SuperPlayer"));
 
-    // fn create_test_session() -> PlayerSession {
+        assert_eq!(sesh_a, sesh_b);
+    }
 
+    #[test]
+    fn test_msg_count_increment() {
+        let mut sesh = create_test_session();
+        assert_eq!(sesh.messages_count, 0);
 
+        sesh.increment_msg_count();
+        assert_eq!(sesh.messages_count, 1);
+    }
 
-    // }
+    #[test]
+    fn test_set_username() {
+        let mut sesh = create_test_session();
+        sesh.set_username(String::from("ObiWan"));
+
+        assert_eq!(sesh.player_name.unwrap(), String::from("ObiWan"));
+    }
+
+    fn create_test_session() -> PlayerSession {
+        PlayerSession {
+            state: SessionState::Closed,
+            last_comm_time:chrono::UTC::now(),
+            player_socket: None,
+            messages_count: 0,
+            player_name: None
+        }
+    }
 }
