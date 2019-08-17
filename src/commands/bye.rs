@@ -2,7 +2,7 @@ use std::iter::*;
 use std::io::{BufReader, Read};
 use crate::utils::*;
 
-pub static BYE_MSG_ID: &'static str = "BYYE";
+pub static BYE_MSG_ID: &str = "BYYE";
 
 // BYE
 #[derive(Debug)]

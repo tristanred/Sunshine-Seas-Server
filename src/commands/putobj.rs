@@ -6,7 +6,7 @@ extern crate byteorder;
 use byteorder::*;
 use std::convert::*;
 
-pub static PUTOBJ_MSG_ID: &'static str = "PUTOBJ";
+pub static PUTOBJ_MSG_ID: &str = "PUTOBJ";
 
 // API Call : PUTOBJ
 //

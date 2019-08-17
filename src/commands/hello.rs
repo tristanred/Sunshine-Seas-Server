@@ -2,7 +2,7 @@ use std::iter::*;
 use std::io::{BufReader, Read};
 use crate::utils::*;
 
-pub static HELLO_MSG_ID: &'static str = "HELO";
+pub static HELLO_MSG_ID: &str = "HELO";
 
 // HELLO
 #[derive(Debug, PartialEq)]
