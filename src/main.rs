@@ -62,16 +62,14 @@ fn start_server_thread() {
             let sesh = sessions::create_player_session(sock);
 
             {
-                let m_lock = loop_ctx.lock().unwrap();
-                let ctx: &ServerContext = &m_lock;
-                let mut sessions_lock = ctx.sessions.lock().unwrap();
-                let sessions: &mut sessions::SessionManager = &mut sessions_lock;
-                
+                let ctx = loop_ctx.lock().unwrap();
+                let mut sessions = ctx.sessions.lock().unwrap();
+
                 sessions.add_session(sesh.clone());
             }
 
             let session = Arc::new(Mutex::new(sesh));
-            
+
             start_client_thread(session, loop_ctx);
         }
     });
@@ -81,12 +79,34 @@ fn start_client_thread(session: Arc<Mutex<PlayerSession>>, ctx: Arc<Mutex<Server
 
     std::thread::spawn(move || {
 
-        let mut session_lock = session.lock().unwrap();
-        let mut session: &mut PlayerSession = &mut session_lock;
+        /*
+         * Intricate method to grab a TcpStream instance from inside the session
+         * while leaving the session instance unlocked after the copy.
+         *
+         * This is needed because we need a TcpStream instance to pass to the
+         * BufReader and it is found inside the PlayerSession instance. We
+         * don't want to lock the PlayerSession struct up here because that
+         * would lock it indefinitely and the server thread could never
+         * update the information.
+         *
+         * So we reach in the structure and try_clone it and return it outside
+         * the artificial scope. This releases the resources and the mutex locks
+         * so they remain unlocked until later in the thread when a message
+         * was received and we need to call handle_user_packet.
+         *
+         * This respects the "lock as late as possible, release as early as
+         * possible" principle.
+         */
+        let socket: TcpStream = {
+            let mut session_lock = session.lock().unwrap();
+            let session: &mut PlayerSession = &mut session_lock;
 
-        let socket_check = session.player_socket.clone().unwrap();
-        let socket_lock = socket_check.lock().unwrap();
-        let socket: &TcpStream = &socket_lock;
+            let socket_check = session.player_socket.clone().unwrap();
+            let socket_lock = socket_check.lock().unwrap();
+            let socket: &TcpStream = &socket_lock;
+
+            socket.try_clone().unwrap()
+        };
 
         // A bufreader is created using the TcpStream copy
         let mut br = BufReader::new(socket);
@@ -100,6 +120,12 @@ fn start_client_thread(session: Arc<Mutex<PlayerSession>>, ctx: Arc<Mutex<Server
 
                 break;
             }
+
+            // Lock the structures as close as possible to their callsites
+            // Lock, call handle_user_packet(...) on it, save session and
+            // the locks will be unlocked when the loop scope ends.
+            let mut session_lock = session.lock().unwrap();
+            let mut session: &mut PlayerSession = &mut session_lock;
 
             let ctx_lock = ctx.lock().unwrap();
             let ctx: &ServerContext = &ctx_lock;
@@ -146,12 +172,12 @@ fn handle_user_packet(data: &[u8], session: &mut PlayerSession, ctx: &ServerCont
         ref x if x == BYE_MSG_ID => {
             let msg = ByeCommand::from_client_message(&data).unwrap();
 
-            handle_bye_message(&msg, session)?;
+            handle_bye_message(&msg, session, ctx)?;
         },
         ref x if x == PUTOBJ_MSG_ID => {
             let msg = PutObjCommand::from_client_message(&data).unwrap();
 
-            handle_put_obj_message(&msg, session)?;
+            handle_put_obj_message(&msg, session, ctx)?;
         },
         _ => {
             return Err("Unrecognized message type".to_string());
@@ -183,7 +209,8 @@ fn handle_hello_message(message: &HelloCommand, session: &mut PlayerSession, ctx
         SessionState::Closed => {
             session.state = SessionState::Active;
 
-            ctx.sessions.lock().unwrap().add_session(session.clone());
+            let mut manager = ctx.sessions.lock().unwrap();
+            manager.add_session(session.clone());
 
             return Ok(());
         },
@@ -193,7 +220,7 @@ fn handle_hello_message(message: &HelloCommand, session: &mut PlayerSession, ctx
     }
 }
 
-fn handle_bye_message(message: &ByeCommand, session: &mut PlayerSession) -> Result<(), &'static str> {
+fn handle_bye_message(message: &ByeCommand, session: &mut PlayerSession, _ctx: &ServerContext) -> Result<(), &'static str> {
     println!("Received BYE message {:?}", message);
 
     match session.state {
@@ -208,7 +235,7 @@ fn handle_bye_message(message: &ByeCommand, session: &mut PlayerSession) -> Resu
     }
 }
 
-fn handle_put_obj_message(message: &PutObjCommand, session: &mut PlayerSession) -> Result<(), String> {
+fn handle_put_obj_message(message: &PutObjCommand, _session: &mut PlayerSession, _ctx: &ServerContext) -> Result<(), String> {
     println!("Received PUTOBJ message {:?}", message);
 
     Err("Not implemented".to_string())
